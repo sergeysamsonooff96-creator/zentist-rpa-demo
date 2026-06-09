@@ -1,7 +1,5 @@
 import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
-
 from src.app.connectors.email_connector import EmailConnector
 
 
