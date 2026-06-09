@@ -1,115 +1,112 @@
 <!-- schema-ref: zentist-r7 -->
 
-# Zentist RPA Demo
+# Zentist RPA demo
 
-This project automates two portals on a shared Python codebase:
+This project automates **OrangeHRM** and **Sauce Demo** on a shared Python codebase.
 
-- OrangeHRM — employee processing and data update flow.
-- Sauce Demo — end-to-end purchase flow for all required accounts.
+During execution, the application:
 
-The solution is built around reusable shared layers for configuration, retries, persistence, reporting, and email delivery. It stores per-item outcomes in SQLite, generates a structured JSON report after each run, and can send an HTML summary email with the report attached. [file:243]
-
-## Implemented portals
-
-### OrangeHRM
-
-The OrangeHRM runner:
-
-- logs in once with configured credentials;
-- processes a batch of employees from input data;
-- checks whether an employee already exists;
-- creates the employee if missing;
-- updates Job Title and Employment Status to target values from input;
-- uploads a salary attachment if it is not already present.
-
-The run is idempotent at the result-storage level for the same day: repeated processing updates the stored outcome for the same item instead of inserting duplicates. [file:243]
-
-### Sauce Demo
-
-The Sauce Demo runner:
-
-- processes all required accounts;
-- logs in with `secret_sauce`;
-- adds three products to the cart;
-- completes checkout;
-- captures order details for successful accounts;
-- records failures without aborting the rest of the batch.
-
-This matches the required mixed-outcome behavior where some accounts may fail while the job still produces a coherent final report. [file:243]
-
-## Features
-
-- Shared runner architecture with portal-specific implementations.
-- Reusable retry and browser layers.
-- SQLite persistence for per-item outcomes.
-- JSON report generation after each run.
-- HTML email report with JSON attachment.
-- Structured logs and partial-failure tolerance.
-- Same-day upsert behavior for item results.
+- processes the input data for the selected portal;
+- stores per-item results in SQLite;
+- generates a JSON report;
+- sends an HTML summary email when email settings are configured;
+- keeps the run completed even if email delivery fails, while the report remains available in **reports/**.
 
 ## Installation
 
 ```bash
-git clone <repository_url>
-cd <repository_folder>
+git clone https://github.com/sergeysamsonooff96-creator/zentist-rpa-demo.git
+cd zentist-rpa-demo
 
 python -m venv .venv
 ```
 
 Activate the virtual environment:
 
-### Linux / macOS
-
 ```bash
 source .venv/bin/activate
 ```
 
-### Windows PowerShell
+For Windows PowerShell:
 
 ```powershell
 .venv\Scripts\Activate.ps1
 ```
 
-Install dependencies:
+Install runtime dependencies and Playwright browser support:
 
 ```bash
 pip install -r requirements.txt
-python -m playwright install
+python -m playwright install chromium
+```
+
+Install development dependencies:
+
+```bash
+pip install -r requirements-dev.txt
 ```
 
 ## Configuration
 
-Application settings are loaded from environment variables. A local `.env` file can be used for convenience.
+The application reads settings from environment variables. For local development, it is convenient to use a `.env` file.
 
-See `.env.example` for a sample configuration.
+See **.env.example** for a sample configuration.
 
-### Required environment variables
+Example **.env.example**:
 
-- `APP_ENV` — environment name, for example `local`, `dev`, or `ci`.
-- `PORTAL_NAME` — portal to run: `orangehrm` or `saucedemo`.
-- `DB_PATH` — path to the SQLite database file.
-- `REPORT_EMAIL` — recipient email for the final report.
-- `ORANGEHRM_URL` — OrangeHRM base URL.
-- `ORANGEHRM_USERNAME` — OrangeHRM username.
-- `ORANGEHRM_PASSWORD` — OrangeHRM password.
-- `SAUCEDEMO_URL` — Sauce Demo base URL.
-- `SAUCEDEMO_PASSWORD` — password for Sauce Demo accounts.
-- `SMTP_HOST` — SMTP host.
-- `SMTP_PORT` — SMTP port.
-- `SMTP_USERNAME` — SMTP username.
-- `SMTP_PASSWORD` — SMTP password or app password.
-- `SMTP_USE_TLS` — whether to use STARTTLS.
-- `SMTP_FROM` — sender email address.
+```env
+APP_ENV=local
+DB_PATH=./data/app.db
+
+PORTAL_NAME=orangehrm
+# PORTAL_NAME=saucedemo
+
+ORANGEHRM_URL=https://opensource-demo.orangehrmlive.com/web/index.php/auth/login
+ORANGEHRM_USERNAME={orangehrm_username}
+ORANGEHRM_PASSWORD={orangehrm_password}
+
+SAUCEDEMO_URL=https://www.saucedemo.com
+SAUCEDEMO_PASSWORD={saucedemo_password}
+
+REPORT_EMAIL={report_recipient_email}
+
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME={smtp_username}
+SMTP_PASSWORD={smtp_password_or_app_password}
+SMTP_USE_TLS=true
+SMTP_FROM={smtp_from_email}
+```
+
+Main variables:
+
+- **APP_ENV** — environment name, for example **local**, **dev**, or **ci**.
+- **PORTAL_NAME** — portal to run: **orangehrm** or **saucedemo**.
+- **DB_PATH** — path to the SQLite database file.
+- **REPORT_EMAIL** — recipient email address for the final report.
+- **ORANGEHRM_URL** — OrangeHRM login URL.
+- **ORANGEHRM_USERNAME** — OrangeHRM username.
+- **ORANGEHRM_PASSWORD** — OrangeHRM password.
+- **SAUCEDEMO_URL** — Sauce Demo base URL.
+- **SAUCEDEMO_PASSWORD** — password for Sauce Demo accounts.
+- **SMTP_HOST** — SMTP host.
+- **SMTP_PORT** — SMTP port.
+- **SMTP_USERNAME** — SMTP account username.
+- **SMTP_PASSWORD** — SMTP password or app password.
+- **SMTP_USE_TLS** — whether to use STARTTLS.
+- **SMTP_FROM** — sender email address.
+
+Credentials are kept outside the repository and are not hardcoded in the application code, which matches the task requirements. [file:243]
 
 ## Gmail setup
 
-For Gmail, use an app password instead of the main account password.
+For Gmail, it is recommended to use an app password instead of the main account password.
 
 1. Enable two-factor authentication on the Google account.
 2. Create an App Password in Google security settings.
-3. Put that value into `SMTP_PASSWORD`.
-4. Use the same Gmail address for both `SMTP_USERNAME` and `SMTP_FROM`.
-5. Typical Gmail SMTP settings:
+3. Put that value into **SMTP_PASSWORD**.
+4. Use the same Gmail address for both **SMTP_USERNAME** and **SMTP_FROM**.
+5. Use the following SMTP settings:
 
 ```env
 SMTP_HOST=smtp.gmail.com
@@ -117,144 +114,158 @@ SMTP_PORT=587
 SMTP_USE_TLS=true
 ```
 
-## Running the project
+## Running the application
 
-One run processes one portal. Select the portal with `PORTAL_NAME`.
+The application runs one portal per execution. The target portal is selected through **PORTAL_NAME**.
 
 ```bash
 python -m src.app.main
 ```
 
-During a run, the application:
+During execution, the application:
 
 1. loads configuration;
-2. initializes the SQLite schema if needed;
-3. selects the correct runner from the portal registry;
-4. processes all items for that portal;
-5. stores per-item outcomes in `item_results`;
-6. generates a JSON report in `reports/`;
-7. sends an HTML email report when SMTP is configured.
+2. creates a SQLite connection;
+3. initializes the database schema when needed;
+4. selects the required runner by portal name;
+5. processes all items from the input set;
+6. stores per-item outcomes in the **item_results** table;
+7. generates a JSON report;
+8. sends an HTML email if SMTP is configured.
 
-## Reports
+## Supported portals
 
-After each run, a JSON report is created in the `reports/` directory.
+### OrangeHRM
+
+The **OrangeHRM** scenario:
+
+- logs into the portal;
+- processes the input employee list;
+- checks whether an employee already exists;
+- creates the employee if missing;
+- updates **Job Title** and **Employment Status**;
+- uploads a salary attachment when it is not already present.
+
+The implementation is designed to be idempotent for repeated same-day runs, so reruns do not create duplicate stored results and keep the target employee state aligned with the intended values. [file:243]
+
+### Sauce Demo
+
+The **Sauce Demo** scenario:
+
+- processes the required test accounts;
+- logs into the portal;
+- adds three items to the cart;
+- completes the checkout flow;
+- stores the result for each account;
+- continues the batch even if one of the accounts fails.
+
+Each account is processed independently, and failures are recorded with a reason instead of aborting the full batch. [file:243]
+
+## Reporting
+
+After each run, the application creates a JSON file in the **reports/** directory.
 
 The report contains:
 
-- `portal` — portal name;
-- `run_id` — unique run identifier;
-- `generated_at` — report generation timestamp;
-- `statistics` — total / success / failed counters;
-- `items` — processed items with status and reason;
-- `logs` — structured run-level and item-level events.
+- **portal** — portal name;
+- **run_id** — run identifier;
+- **generated_at** — report generation timestamp;
+- **statistics** — **total / success / failed**;
+- **items** — processed items with their result;
+- **logs** — structured event log for the run.
 
-The JSON report is saved even if email delivery is unavailable or fails. This ensures the run still produces a coherent output for inspection. [file:243]
+The JSON report is saved regardless of whether email delivery is enabled.
 
 ## Email report
 
-When SMTP is configured, the application sends an HTML email summary to `REPORT_EMAIL`.
+After generating the JSON report, the application can send an HTML email to the address specified in **REPORT_EMAIL**.
 
-The email includes:
+The email contains:
 
-- run metadata;
-- total / success / failed statistics;
-- successful transactions table;
-- failed transactions table;
+- run information;
+- summary statistics;
+- a **Successful transactions** section;
+- a **Failed transactions** section;
 - the JSON report as an attachment.
 
-A mail delivery problem does not remove the saved JSON report and does not invalidate the run result.
+If email sending is disabled, not configured, or fails, this does not affect result persistence. The main report always remains available in **reports/**.
 
-## Persistence and idempotency
+## Result storage
 
-Results are stored in SQLite in the `item_results` table.
+Results are stored in SQLite in the **item_results** table.
 
-The repository uses a same-day uniqueness rule on:
-
-- `portal`
-- `run_date`
-- `item_key`
-
-This means a same-day rerun updates the stored result for the same item instead of creating duplicates, which supports the requirement that reruns should not corrupt reporting or duplicate outcomes. [file:243]
+For the same item within the same day, the existing row is updated instead of inserting a duplicate. This makes reruns safe and keeps the stored results consistent, which directly addresses the same-day rerun requirement from the task. [file:243]
 
 ## Project structure
 
 ```text
 src/
   app/
-    __init__.py
     main.py
     config.py
     logging.py
 
     connectors/
-      __init__.py
       email_connector.py
       report_connector.py
 
     core/
-      __init__.py
       base_runner.py
       browser.py
       retry.py
 
     db/
-      __init__.py
       sqlite.py
       repo.py
 
     portals/
-      __init__.py
       registry.py
 
       orangehrm/
-        __init__.py
         data.py
         runner.py
 
       saucedemo/
-        __init__.py
         data.py
         runner.py
+
+tests/
+  conftest.py
+  test_config.py
+  test_email_connector.py
+  test_repo.py
+  test_report_connector.py
 ```
 
-### Main components
+Main components:
 
-- `main.py` — application entry point.
-- `config.py` — runtime configuration loading.
-- `connectors/` — shared connectors for reporting and email.
-- `core/` — reusable execution, browser, and retry logic.
-- `db/` — SQLite schema and repository layer.
-- `portals/` — portal-specific runners and input data.
-- `registry.py` — maps portal names to runner classes.
+- **main.py** — application entry point.
+- **config.py** — runtime configuration loading.
+- **logging.py** — logging setup.
+- **connectors/** — shared components for reporting and email.
+- **core/** — shared execution, browser, and retry logic.
+- **db/** — persistence layer.
+- **portals/** — portal-specific logic.
+- **registry.py** — mapping between portal names and runner classes.
 
-The shared base runner is named `BasePortalRunnerZX` as required by the task. [file:243]
+The base portal runner class is **BasePortalRunnerZX**, as required by the task. [file:243]
 
 ## Adding a new portal
 
-To add a third portal:
+1. Create a new runner that inherits from **BasePortalRunnerZX**.
+2. Implement the portal-specific processing steps.
+3. Reuse the shared connectors for persistence, reporting, and email delivery.
+4. Register the new runner in **src/app/portals/registry.py**.
+5. Add any required environment variables to **.env.example** and local **.env**.
+6. Add tests for the new portal-specific behavior and any new shared logic.
 
-1. create a new runner that inherits from `BasePortalRunnerZX`;
-2. implement `portal_name`, `iter_items()`, and `process_item(...)`;
-3. keep portal-specific selectors and workflow inside that runner;
-4. reuse the shared repository, reporting, retry, and email layers;
-5. register the new runner in `src/app/portals/registry.py`;
-6. extend configuration if the portal needs additional credentials or URLs.
+This keeps the shared layer unchanged while isolating portal-specific behavior in a separate runner implementation, which is the intended extension model for adding a third portal. [file:243]
 
-This keeps shared logic unchanged while isolating portal-specific behavior in a dedicated implementation, which is one of the explicit requirements of the task. [file:243]
+## Logging and resilience
 
-## Logging and failure handling
+During a run, the application writes application-level and item-level events. Each processed item is stored with a **success** or **failed** outcome, and failures include a readable reason.
 
-The application emits structured operational events at both run and item level.
-
-Behavioral guarantees:
-
-- one failed item does not abort the rest of the batch;
-- each processed item gets an outcome;
-- failures include a readable reason;
-- a report is still produced after partial failure;
-- email delivery is handled as a separate step.
-
-This supports the requirement that a human should be able to understand what happened in the run without digging through raw stack traces. [file:243]
+A partial failure does not stop the whole batch. Even if a specific item or the email step fails, the run still completes and produces a final report. Retry and timeout handling are implemented in the reusable shared layer rather than duplicated inside each portal runner. [file:243]
 
 ## Tests
 
@@ -264,15 +275,45 @@ Run tests with:
 python -m pytest -q
 ```
 
-Current tests cover:
+Current test coverage includes:
 
 - configuration loading;
 - SQLite result persistence;
-- same-day upsert behavior for item outcomes;
+- upsert logic for repeated item results;
 - JSON report generation;
 - email sending through mocked SMTP.
 
-## Notes
+## CI
 
-- Some target values in OrangeHRM may not exist in the live dropdown at runtime. In that case, the run records a failure reason for the affected employee and continues.
-- Sauce Demo intentionally includes accounts with unstable or failing behavior. These failures are expected and are captured as per-item outcomes rather than crashing the batch. [file:243]
+GitHub Actions is configured for this repository and runs on pushes and pull requests to **main**.
+
+The CI workflow:
+
+- sets up Python;
+- installs runtime and development dependencies;
+- installs Playwright browser support;
+- runs **ruff**;
+- runs the **pytest** suite.
+
+This satisfies the task requirement for a PR pipeline that installs dependencies, runs linting, and executes tests. [file:243]
+
+## Development workflow
+
+Typical local development flow:
+
+1. create and activate a virtual environment;
+2. install runtime and development dependencies;
+3. configure a local `.env`;
+4. run the selected portal with `python -m src.app.main`;
+5. run `python -m pytest -q`;
+6. run `ruff check .`.
+
+## Development tools
+
+Development dependencies are stored in **requirements-dev.txt**.
+
+Current development tools:
+
+- **pytest**
+- **pytest-asyncio**
+- **ruff**
